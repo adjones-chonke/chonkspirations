@@ -57,34 +57,47 @@ The grid and the lightbox deliberately load different things.
 
 | | source | typical size |
 |---|---|---|
-| grid poster / image tabs | `next/image` → WebP at grid width | ~50–500 KB |
-| lightbox | original bytes from Drive | 1–11 MB |
+| grid poster / image tabs | Drive-rendered thumbnail via `/api/thumb` | ~285 KB |
+| lightbox | original bytes via `/api/media` | 1–11 MB |
 | video | original file, fetched on play | untouched |
 
 Three rules make this work, and breaking any of them regresses the page:
 
-1. **Videos use `preload="none"` and no `autoPlay`.** A card shows an optimized
+1. **Videos use `preload="none"` and no `autoPlay`.** A card shows a thumbnail
    poster until someone clicks it. Nothing video-related crosses the network
    until then. Video quality is never reduced — only deferred.
-2. **Grid images go through `next/image`.** Measured on a real 6-item library,
-   this took grid images from 36.5 MB to 3.0 MB.
+2. **Grid images never touch the originals.** All six posters together come to
+   ~1.7 MB, against 36.5 MB if the grid loaded originals.
 3. **Offscreen videos pause.** An `IntersectionObserver` in `GalleryCard` stops
    cards that scroll out of view from buffering.
 
-### Watch out for Drive throttling
+### Why `/api/thumb` exists
 
-Every *new* image width the optimizer is asked for costs one full-size download
-through the Drive API, and Google throttles bulk downloads with an HTML "Sorry..."
-page rather than a clean error. Two settings in `next.config.ts` keep that in check:
+Drive renders its own thumbnails and serves them from `lh3.googleusercontent.com`.
+Requesting one costs a cheap **metadata** call and no **file-download** quota —
+and file downloads are the thing Google rate limits. That makes browsing the grid
+essentially free against the quota that matters.
 
-- `deviceSizes` / `imageSizes` are trimmed to the widths this grid can actually
-  request. Next's defaults generate up to 15 variants per image.
-- `minimumCacheTTL` is 31 days. Safe here because a new Drive upload gets a new
-  file ID, and therefore a new cache key — it appears immediately regardless.
-  Only replacing content *inside* an existing file would serve stale.
+It is a proxy rather than a direct link for two reasons, both of which are easy
+to rediscover the hard way:
 
-If you hit the throttle it clears on its own. A service account (option B above)
-is far less likely to trip it.
+- **The URLs rotate.** `thumbnailLink` returns a different signed token on every
+  metadata call, so a direct link can never be cached by a browser or CDN.
+  Keying the route on the stable Drive file ID fixes that.
+- **Chrome refuses to render them cross-origin**, failing with
+  `ERR_BLOCKED_BY_ORB` even though the response is a valid `image/jpeg`.
+  Same-origin proxying sidesteps it.
+
+`next/image` is deliberately **not** used: these are already resized, and the
+rotating source URLs would make the optimizer's cache miss every single time.
+
+### If you do hit the throttle
+
+Bulk file downloads can still trip Google's protection — it answers `403` with an
+HTML "Sorry..." page, which reads exactly like a permissions error. To check
+whether a credential is actually broken, call a metadata endpoint with it. If
+`files.list` returns `200` while `alt=media` returns `403`, the key is fine and
+only downloads are limited. It clears on its own; a new key does not help.
 
 ## Scripts
 

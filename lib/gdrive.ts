@@ -6,8 +6,13 @@ export interface GalleryItem {
   id: string;
   title: string;
   video_src: string;
+  // Originals, proxied through /api/media. Used by the lightbox and playback.
   static_src: string;
   params_src: string;
+  // Drive-rendered derivatives for the grid, served via /api/thumb. Rendering
+  // these costs no file-download quota, which is what gets rate limited.
+  static_thumb: string;
+  params_thumb: string;
 }
 
 const VIDEO_EXT = /\.(mp4|mov|webm|mkv)$/i;
@@ -39,7 +44,7 @@ export function classifyAssets<T extends AssetCandidate>(files: T[]) {
   return { video, staticImg, paramsImg };
 }
 
-function getDriveClient() {
+export function getDriveClient() {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (apiKey) {
     return google.drive({ version: 'v3', auth: apiKey });
@@ -99,6 +104,9 @@ export async function fetchGalleryItems(): Promise<GalleryItem[]> {
         }));
 
         const { video, staticImg, paramsImg } = classifyAssets(files);
+        // Drive renders thumbnails for videos too, so a folder with no preview
+        // image still gets a poster.
+        const posterId = staticImg?.id || video?.id;
 
         items.push({
           id: folder.name,
@@ -106,6 +114,8 @@ export async function fetchGalleryItems(): Promise<GalleryItem[]> {
           video_src: video?.id ? `/api/media/${video.id}` : '',
           static_src: staticImg?.id ? `/api/media/${staticImg.id}` : '',
           params_src: paramsImg?.id ? `/api/media/${paramsImg.id}` : '',
+          static_thumb: posterId ? `/api/thumb/${posterId}` : '',
+          params_thumb: paramsImg?.id ? `/api/thumb/${paramsImg.id}` : '',
         });
       }
 
@@ -148,6 +158,9 @@ function getLocalGalleryItems(): GalleryItem[] {
       video_src: localSrc(video?.name),
       static_src: localSrc(staticImg?.name),
       params_src: localSrc(paramsImg?.name),
+      // No Drive CDN here, so the grid and the lightbox share one file.
+      static_thumb: localSrc(staticImg?.name),
+      params_thumb: localSrc(paramsImg?.name),
     });
   }
 

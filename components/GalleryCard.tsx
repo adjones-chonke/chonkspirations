@@ -24,6 +24,12 @@ export default function GalleryCard({
   onOpenLightbox,
   priority = false,
 }: GalleryCardProps) {
+  // Grid shows Drive's CDN thumbnail; the proxied original is only a fallback
+  // for folders Drive did not generate a thumbnail for.
+  const posterSrc = item.static_thumb || item.static_src;
+  const staticGridSrc = item.static_thumb || item.static_src;
+  const paramsGridSrc = item.params_thumb || item.params_src;
+
   const defaultTab = item.video_src ? 'video' : item.static_src ? 'static' : 'params';
   const [activeTab, setActiveTab] = useState<'video' | 'static' | 'params'>(defaultTab);
   const [hasPlayed, setHasPlayed] = useState(false);
@@ -143,13 +149,14 @@ export default function GalleryCard({
                 onError={explainFailure}
                 style={{ cursor: 'pointer' }}
               />
-              {!hasPlayed && item.static_src && (
+              {!hasPlayed && posterSrc && (
                 <Image
-                  src={item.static_src}
+                  src={posterSrc}
                   alt=""
                   fill
                   sizes={GRID_SIZES}
                   priority={priority}
+                  unoptimized
                   className="poster-overlay"
                   onClick={toggleVideoPlay}
                 />
@@ -171,11 +178,12 @@ export default function GalleryCard({
         ) : activeTab === 'static' ? (
           item.static_src ? (
             <Image
-              src={item.static_src}
+              src={staticGridSrc}
               className="media-element"
               alt="Static Image"
               fill
               sizes={GRID_SIZES}
+              unoptimized
               onClick={() => onOpenLightbox(item.static_src, item.title)}
               style={{ cursor: 'zoom-in' }}
             />
@@ -184,11 +192,12 @@ export default function GalleryCard({
           )
         ) : item.params_src ? (
           <Image
-            src={item.params_src}
+            src={paramsGridSrc}
             className="media-element"
             alt="Params PNG"
             fill
             sizes={GRID_SIZES}
+            unoptimized
             onClick={() => onOpenLightbox(item.params_src, item.title)}
             style={{ cursor: 'zoom-in' }}
           />
