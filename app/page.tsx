@@ -14,7 +14,7 @@ export default function GalleryPage() {
   // Toolbar state
   const [searchQuery, setSearchQuery] = useState('');
   const [isGlobalPlaying, setIsGlobalPlaying] = useState(false);
-  const [isGlobalMuted, setIsGlobalMuted] = useState(true);
+  const [isGlobalMuted, setIsGlobalMuted] = useState(false);
   const [globalSpeed, setGlobalSpeed] = useState(1.0);
   const [gridCols, setGridCols] = useState(4);
 

@@ -36,7 +36,7 @@ export default function GalleryHeader({
       <div className="brand">
         <h1>Chonk Gallery</h1>
         <span className={`badge ${isLive ? 'badge-live' : ''}`}>
-          {isLive ? '🟢 Google Drive Live' : '📁 Local Workspace'} ({itemCount})
+          {isLive ? '🟢 Google Drive Live' : '📁 Google Drive'} ({itemCount})
         </span>
       </div>
 
