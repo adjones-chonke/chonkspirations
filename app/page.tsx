@@ -29,21 +29,23 @@ export default function GalleryPage() {
     title: '',
   });
 
-  useEffect(() => {
-    async function loadGallery() {
-      try {
-        const res = await fetch('/api/gallery');
-        if (res.ok) {
-          const data = await res.json();
-          setItems(data.items || []);
-          setIsLive(data.isLive || false);
-        }
-      } catch (err) {
-        console.error('Failed to fetch gallery items:', err);
-      } finally {
-        setLoading(false);
+  const loadGallery = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/gallery');
+      if (res.ok) {
+        const data = await res.json();
+        setItems(data.items || []);
+        setIsLive(data.isLive || false);
       }
+    } catch (err) {
+      console.error('Failed to fetch gallery items:', err);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadGallery();
   }, []);
 
@@ -74,6 +76,8 @@ export default function GalleryPage() {
         onColsChange={setGridCols}
         itemCount={filteredItems.length}
         isLive={isLive}
+        isLoading={loading}
+        onRefresh={loadGallery}
       />
 
       <main>

@@ -15,6 +15,8 @@ interface GalleryHeaderProps {
   onColsChange: (cols: number) => void;
   itemCount: number;
   isLive: boolean;
+  isLoading: boolean;
+  onRefresh: () => void;
 }
 
 export default function GalleryHeader({
@@ -30,6 +32,8 @@ export default function GalleryHeader({
   onColsChange,
   itemCount,
   isLive,
+  isLoading,
+  onRefresh,
 }: GalleryHeaderProps) {
   return (
     <header>
@@ -60,6 +64,10 @@ export default function GalleryHeader({
 
         <button className="btn" onClick={onToggleGlobalMute}>
           <span>{isGlobalMuted ? '🔇' : '🔊'}</span> Mute All
+        </button>
+
+        <button className="btn" onClick={onRefresh} disabled={isLoading}>
+          <span>{isLoading ? '⏳' : '🔄'}</span> Sync
         </button>
 
         <select
