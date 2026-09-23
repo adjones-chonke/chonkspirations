@@ -113,6 +113,7 @@ npm run lint    # eslint
 - `lib/gdrive.ts` lists folders sequentially, so a cold read costs one Drive API
   call per subfolder. Fine at a dozen items; parallelize before it grows large.
 - The grid renders every item with no virtualization.
-- The `chonk_library/` local fallback is not currently served — those paths
-  resolve under `/chonk_library/...`, which would need the directory inside
-  `public/`.
+- There is no offline or local-file mode by design. Drive is the source of
+  truth; if credentials are missing or Drive fails, the gallery renders empty.
+- `getDriveClient` is duplicated between `lib/gdrive.ts` and
+  `app/api/media/[fileId]/route.ts`, which return different shapes.

@@ -1,6 +1,4 @@
 import { google } from 'googleapis';
-import fs from 'fs';
-import path from 'path';
 
 export interface GalleryItem {
   id: string;
@@ -119,50 +117,11 @@ export async function fetchGalleryItems(): Promise<GalleryItem[]> {
         });
       }
 
-      if (items.length > 0) {
-        return items;
-      }
+      return items;
     } catch (err) {
       console.error('Error fetching from Google Drive API:', err);
     }
   }
 
-  // Local fallback mode when GOOGLE_DRIVE_FOLDER_ID is not configured or fails
-  return getLocalGalleryItems();
-}
-
-function getLocalGalleryItems(): GalleryItem[] {
-  const libDir = path.join(process.cwd(), 'chonk_library');
-  if (!fs.existsSync(libDir)) return [];
-
-  const folders = fs.readdirSync(libDir).filter(f => {
-    return fs.statSync(path.join(libDir, f)).isDirectory() && !f.startsWith('.');
-  });
-
-  const items: GalleryItem[] = [];
-
-  for (const folder of folders.sort()) {
-    const folderPath = path.join(libDir, folder);
-    const files = fs
-      .readdirSync(folderPath)
-      .filter((f) => !f.startsWith('.'))
-      .map((name) => ({ name }));
-
-    const { video, staticImg, paramsImg } = classifyAssets(files);
-    const localSrc = (name?: string) =>
-      name ? `/chonk_library/${encodeURIComponent(folder)}/${encodeURIComponent(name)}` : '';
-
-    items.push({
-      id: folder,
-      title: folder,
-      video_src: localSrc(video?.name),
-      static_src: localSrc(staticImg?.name),
-      params_src: localSrc(paramsImg?.name),
-      // No Drive CDN here, so the grid and the lightbox share one file.
-      static_thumb: localSrc(staticImg?.name),
-      params_thumb: localSrc(paramsImg?.name),
-    });
-  }
-
-  return items;
+  return [];
 }

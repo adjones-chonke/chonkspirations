@@ -27,9 +27,6 @@
 # browser-automation output
 /.playwright-mcp/
 
-# local media library — Drive is the source of truth, keep these out of git
-/chonk_library/
-
 # debug
 npm-debug.log*
 yarn-debug.log*
