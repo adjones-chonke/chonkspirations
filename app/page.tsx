@@ -6,6 +6,21 @@ import GalleryCard from '@/components/GalleryCard';
 import LightboxModal from '@/components/LightboxModal';
 import { GalleryItem } from '@/lib/gdrive';
 
+interface GalleryResponse {
+  items?: GalleryItem[];
+  isLive?: boolean;
+}
+
+// `force` bypasses the browser and CDN caches so the Sync button reaches Drive.
+async function fetchGallery(force: boolean): Promise<GalleryResponse> {
+  const res = await fetch(
+    force ? `/api/gallery?t=${Date.now()}` : '/api/gallery',
+    force ? { cache: 'no-store' } : undefined
+  );
+  if (!res.ok) throw new Error(`Gallery request failed: ${res.status}`);
+  return res.json();
+}
+
 export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [isLive, setIsLive] = useState(false);
@@ -29,25 +44,33 @@ export default function GalleryPage() {
     title: '',
   });
 
-  const loadGallery = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/gallery');
-      if (res.ok) {
-        const data = await res.json();
+  useEffect(() => {
+    let cancelled = false;
+    fetchGallery(false)
+      .then((data) => {
+        if (cancelled) return;
         setItems(data.items || []);
         setIsLive(data.isLive || false);
-      }
-    } catch (err) {
-      console.error('Failed to fetch gallery items:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadGallery();
+      })
+      .catch((err) => console.error('Failed to fetch gallery items:', err))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  const handleRefresh = () => {
+    setLoading(true);
+    fetchGallery(true)
+      .then((data) => {
+        setItems(data.items || []);
+        setIsLive(data.isLive || false);
+      })
+      .catch((err) => console.error('Failed to refresh gallery items:', err))
+      .finally(() => setLoading(false));
+  };
 
   const filteredItems = items.filter((item) =>
     item.title.toLowerCase().includes(searchQuery.toLowerCase().trim())
@@ -77,7 +100,7 @@ export default function GalleryPage() {
         itemCount={filteredItems.length}
         isLive={isLive}
         isLoading={loading}
-        onRefresh={loadGallery}
+        onRefresh={handleRefresh}
       />
 
       <main>
@@ -106,7 +129,7 @@ export default function GalleryPage() {
             className="gallery-grid"
             style={{ '--cols': gridCols } as React.CSSProperties}
           >
-            {filteredItems.map((item) => (
+            {filteredItems.map((item, index) => (
               <GalleryCard
                 key={item.id}
                 item={item}
@@ -114,6 +137,7 @@ export default function GalleryPage() {
                 isGlobalMuted={isGlobalMuted}
                 globalSpeed={globalSpeed}
                 onOpenLightbox={openLightbox}
+                priority={index < gridCols}
               />
             ))}
           </div>

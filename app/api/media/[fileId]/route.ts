@@ -48,6 +48,17 @@ export async function GET(
 
       const driveRes = await fetch(url, { headers: reqHeaders });
 
+      if (!driveRes.ok) {
+        // Drive answers a genuine permission error with JSON, but answers its
+        // bulk-download throttle with an HTML "Sorry..." page. Only the latter
+        // is worth telling the user to wait out.
+        const throttled = driveRes.headers.get('Content-Type')?.includes('text/html');
+        return NextResponse.json(
+          { error: throttled ? 'Rate limited by Google Drive' : 'Google Drive refused the request' },
+          { status: throttled ? 429 : driveRes.status }
+        );
+      }
+
       const headers = new Headers();
       headers.set('Content-Type', driveRes.headers.get('Content-Type') || 'application/octet-stream');
       headers.set('Cache-Control', 'public, max-age=86400, s-maxage=86400');

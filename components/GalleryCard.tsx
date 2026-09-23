@@ -1,7 +1,11 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { GalleryItem } from '@/lib/gdrive';
+
+const GRID_SIZES =
+  '(min-width: 1281px) 25vw, (min-width: 901px) 33vw, (min-width: 541px) 50vw, 100vw';
 
 interface GalleryCardProps {
   item: GalleryItem;
@@ -9,6 +13,7 @@ interface GalleryCardProps {
   isGlobalMuted: boolean;
   globalSpeed: number;
   onOpenLightbox: (src: string, title: string) => void;
+  priority?: boolean;
 }
 
 export default function GalleryCard({
@@ -17,15 +22,35 @@ export default function GalleryCard({
   isGlobalMuted,
   globalSpeed,
   onOpenLightbox,
+  priority = false,
 }: GalleryCardProps) {
   const defaultTab = item.video_src ? 'video' : item.static_src ? 'static' : 'params';
   const [activeTab, setActiveTab] = useState<'video' | 'static' | 'params'>(defaultTab);
-  const [videoMuted, setVideoMuted] = useState(isGlobalMuted);
+  const [hasPlayed, setHasPlayed] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // A per-card mute choice holds only until the global toggle moves, at which
+  // point the card falls back to following it.
+  const [muteOverride, setMuteOverride] = useState<{
+    global: boolean;
+    muted: boolean;
+  } | null>(null);
+  const videoMuted =
+    muteOverride?.global === isGlobalMuted ? muteOverride.muted : isGlobalMuted;
 
   useEffect(() => {
-    setVideoMuted(isGlobalMuted);
-  }, [isGlobalMuted]);
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsVisible(entry.isIntersecting),
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -35,18 +60,36 @@ export default function GalleryCard({
 
   useEffect(() => {
     if (videoRef.current && activeTab === 'video') {
-      if (isGlobalPlaying) {
+      if (isGlobalPlaying && isVisible) {
         videoRef.current.play().catch(() => {});
       } else {
         videoRef.current.pause();
       }
     }
-  }, [isGlobalPlaying, activeTab]);
+  }, [isGlobalPlaying, activeTab, isVisible]);
+
+  // The <video> element only reports "format error", so ask the proxy what
+  // actually went wrong before telling the user.
+  const explainFailure = () => {
+    fetch(item.video_src, { headers: { Range: 'bytes=0-0' } })
+      .then((res) => {
+        // Drive's throttle surfaces as either 403 or 429 depending on the
+        // request shape, so do not try to tell it apart from a sharing problem.
+        if (res.status === 429 || res.status === 403) {
+          return 'Google Drive is limiting requests. Wait a minute, then tap to retry.';
+        }
+        if (res.status === 404) return 'This video is missing from Drive.';
+        return 'Could not load video. Tap to retry.';
+      })
+      .catch(() => 'Could not load video. Tap to retry.')
+      .then(setLoadError);
+  };
 
   const toggleVideoPlay = () => {
     if (!videoRef.current) return;
     if (videoRef.current.paused) {
-      videoRef.current.play();
+      setLoadError(null);
+      videoRef.current.play().catch(explainFailure);
     } else {
       videoRef.current.pause();
     }
@@ -54,11 +97,7 @@ export default function GalleryCard({
 
   const toggleLocalMute = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (videoRef.current) {
-      const nextMuted = !videoRef.current.muted;
-      videoRef.current.muted = nextMuted;
-      setVideoMuted(nextMuted);
-    }
+    setMuteOverride({ global: isGlobalMuted, muted: !videoMuted });
   };
 
   const getActiveImageSrc = () => {
@@ -84,7 +123,7 @@ export default function GalleryCard({
         </button>
       </div>
 
-      <div className="media-container">
+      <div className="media-container" ref={containerRef}>
         {activeTab === 'video' ? (
           item.video_src ? (
             <>
@@ -92,13 +131,30 @@ export default function GalleryCard({
                 ref={videoRef}
                 src={item.video_src}
                 className="media-element"
-                autoPlay
+                preload="none"
                 loop
                 muted={videoMuted}
                 playsInline
                 onClick={toggleVideoPlay}
+                onPlaying={() => {
+                  setHasPlayed(true);
+                  setLoadError(null);
+                }}
+                onError={explainFailure}
                 style={{ cursor: 'pointer' }}
               />
+              {!hasPlayed && item.static_src && (
+                <Image
+                  src={item.static_src}
+                  alt=""
+                  fill
+                  sizes={GRID_SIZES}
+                  priority={priority}
+                  className="poster-overlay"
+                  onClick={toggleVideoPlay}
+                />
+              )}
+              {loadError && <div className="media-notice">{loadError}</div>}
               <div className="media-overlay">
                 <button
                   className="icon-btn"
@@ -114,11 +170,12 @@ export default function GalleryCard({
           )
         ) : activeTab === 'static' ? (
           item.static_src ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
+            <Image
               src={item.static_src}
               className="media-element"
               alt="Static Image"
+              fill
+              sizes={GRID_SIZES}
               onClick={() => onOpenLightbox(item.static_src, item.title)}
               style={{ cursor: 'zoom-in' }}
             />
@@ -126,11 +183,12 @@ export default function GalleryCard({
             <div className="no-asset">No static image available</div>
           )
         ) : item.params_src ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
+          <Image
             src={item.params_src}
             className="media-element"
             alt="Params PNG"
+            fill
+            sizes={GRID_SIZES}
             onClick={() => onOpenLightbox(item.params_src, item.title)}
             style={{ cursor: 'zoom-in' }}
           />

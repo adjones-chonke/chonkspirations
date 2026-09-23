@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { fetchGalleryItems } from '@/lib/gdrive';
 
-export const revalidate = 60; // Cache for 60 seconds
+// Must run per request so the Sync button can force a fresh Drive read.
+// Repeat page loads are still absorbed by the Cache-Control header below.
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {

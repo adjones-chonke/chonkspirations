@@ -10,6 +10,35 @@ export interface GalleryItem {
   params_src: string;
 }
 
+const VIDEO_EXT = /\.(mp4|mov|webm|mkv)$/i;
+const IMAGE_EXT = /\.(png|jpg|jpeg|webp)$/i;
+const PARAMS_NAME = /param|meta|spec/i;
+
+export interface AssetCandidate {
+  name: string;
+  mimeType?: string;
+}
+
+/**
+ * Picks one video, one preview image, and one params image out of a folder.
+ * Params image wins on a name match, else falls back to the second image.
+ */
+export function classifyAssets<T extends AssetCandidate>(files: T[]) {
+  const video = files.find(
+    (f) => f.mimeType?.startsWith('video/') || VIDEO_EXT.test(f.name)
+  );
+  const images = files.filter(
+    (f) => f.mimeType?.startsWith('image/') || IMAGE_EXT.test(f.name)
+  );
+
+  const paramsImg =
+    images.find((f) => PARAMS_NAME.test(f.name)) ??
+    (images.length > 1 ? images[1] : undefined);
+  const staticImg = images.find((f) => f !== paramsImg);
+
+  return { video, staticImg, paramsImg };
+}
+
 function getDriveClient() {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (apiKey) {
@@ -63,30 +92,18 @@ export async function fetchGalleryItems(): Promise<GalleryItem[]> {
           includeItemsFromAllDrives: true,
         });
 
-        const files = filesRes.data.files || [];
+        const files = (filesRes.data.files || []).map((f) => ({
+          id: f.id ?? '',
+          name: f.name ?? '',
+          mimeType: f.mimeType ?? undefined,
+        }));
 
-        // Classify video, static image, params image
-        const videoFile = files.find(f => 
-          f.mimeType?.startsWith('video/') || 
-          /\.(mp4|mov|webm|mkv)$/i.test(f.name || '')
-        );
-
-        const imgFiles = files.filter(f => 
-          f.mimeType?.startsWith('image/') || 
-          /\.(png|jpg|jpeg|webp)$/i.test(f.name || '')
-        );
-
-        const paramsImg = imgFiles.find(f => 
-          /param|meta|spec/i.test(f.name || '')
-        ) || (imgFiles.length > 1 ? imgFiles[1] : undefined);
-
-        const staticImg = imgFiles.find(f => f.id !== paramsImg?.id) || 
-          (imgFiles.length > 0 && imgFiles[0].id !== paramsImg?.id ? imgFiles[0] : undefined);
+        const { video, staticImg, paramsImg } = classifyAssets(files);
 
         items.push({
           id: folder.name,
           title: folder.name,
-          video_src: videoFile?.id ? `/api/media/${videoFile.id}` : '',
+          video_src: video?.id ? `/api/media/${video.id}` : '',
           static_src: staticImg?.id ? `/api/media/${staticImg.id}` : '',
           params_src: paramsImg?.id ? `/api/media/${paramsImg.id}` : '',
         });
@@ -116,19 +133,21 @@ function getLocalGalleryItems(): GalleryItem[] {
 
   for (const folder of folders.sort()) {
     const folderPath = path.join(libDir, folder);
-    const files = fs.readdirSync(folderPath).filter(f => !f.startsWith('.'));
+    const files = fs
+      .readdirSync(folderPath)
+      .filter((f) => !f.startsWith('.'))
+      .map((name) => ({ name }));
 
-    const video = files.find(f => /\.(mp4|mov|webm|mkv)$/i.test(f));
-    const imgs = files.filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f));
-    const paramsImg = imgs.find(f => /param|meta|spec/i.test(f)) || (imgs.length > 1 ? imgs[1] : undefined);
-    const staticImg = imgs.find(f => f !== paramsImg) || (imgs.length > 0 && imgs[0] !== paramsImg ? imgs[0] : undefined);
+    const { video, staticImg, paramsImg } = classifyAssets(files);
+    const localSrc = (name?: string) =>
+      name ? `/chonk_library/${encodeURIComponent(folder)}/${encodeURIComponent(name)}` : '';
 
     items.push({
       id: folder,
       title: folder,
-      video_src: video ? `/chonk_library/${encodeURIComponent(folder)}/${encodeURIComponent(video)}` : '',
-      static_src: staticImg ? `/chonk_library/${encodeURIComponent(folder)}/${encodeURIComponent(staticImg)}` : '',
-      params_src: paramsImg ? `/chonk_library/${encodeURIComponent(folder)}/${encodeURIComponent(paramsImg)}` : '',
+      video_src: localSrc(video?.name),
+      static_src: localSrc(staticImg?.name),
+      params_src: localSrc(paramsImg?.name),
     });
   }
 

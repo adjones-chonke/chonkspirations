@@ -23,7 +23,7 @@ body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   background-color: var(--bg);
   color: var(--text);
-  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
@@ -244,6 +244,28 @@ main {
   height: 100%;
   object-fit: contain;
   display: block;
+}
+
+/* Sits above the poster but ignores clicks, so the card's own click-to-play
+   doubles as the retry. */
+.media-notice {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  pointer-events: none;
+  padding: 0.5rem;
+  background: rgba(4, 7, 13, 0.85);
+  color: var(--text);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.poster-overlay {
+  object-fit: contain;
+  cursor: pointer;
+  z-index: 1;
 }
 
 .no-asset {

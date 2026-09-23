@@ -42,6 +42,14 @@ export default function GalleryHeader({
         <span className={`badge ${isLive ? 'badge-live' : ''}`}>
           {isLive ? '🟢 Google Drive Live' : '📁 Google Drive'} ({itemCount})
         </span>
+        <button
+          className="icon-btn"
+          onClick={onRefresh}
+          disabled={isLoading}
+          title="Sync with Google Drive"
+        >
+          {isLoading ? '⏳' : '🔄'}
+        </button>
       </div>
 
       <div className="toolbar">
@@ -64,10 +72,6 @@ export default function GalleryHeader({
 
         <button className="btn" onClick={onToggleGlobalMute}>
           <span>{isGlobalMuted ? '🔇' : '🔊'}</span> Mute All
-        </button>
-
-        <button className="btn" onClick={onRefresh} disabled={isLoading}>
-          <span>{isLoading ? '⏳' : '🔄'}</span> Sync
         </button>
 
         <select
