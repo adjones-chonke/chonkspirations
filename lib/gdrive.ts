@@ -20,11 +20,27 @@ const PARAMS_NAME = /param|meta|spec/i;
 export interface AssetCandidate {
   name: string;
   mimeType?: string;
+  width?: number;
+  height?: number;
 }
+
+const isPng = (f: AssetCandidate) =>
+  f.mimeType === 'image/png' || /\.png$/i.test(f.name);
+
+// Phone screens run about 2.16:1 (1170×2532); photos and video stills stay
+// under 16:9 (1.78:1). Long side over short side, so rotation doesn't matter.
+const isPhoneShaped = (f: AssetCandidate) =>
+  !!f.width && !!f.height &&
+  Math.max(f.width, f.height) / Math.min(f.width, f.height) >= 1.9;
+
+// A hint only counts when it singles out exactly one image.
+const onlyOne = <T>(list: T[]) => (list.length === 1 ? list[0] : undefined);
 
 /**
  * Picks one video, one preview image, and one params image out of a folder.
- * Params image wins on a name match, else falls back to the second image.
+ * Params image wins on a name match, then on being the only phone-shaped
+ * image (it's a screenshot), then on being the only PNG, else falls back to
+ * the second image.
  */
 export function classifyAssets<T extends AssetCandidate>(files: T[]) {
   const video = files.find(
@@ -33,10 +49,13 @@ export function classifyAssets<T extends AssetCandidate>(files: T[]) {
   const images = files.filter(
     (f) => f.mimeType?.startsWith('image/') || IMAGE_EXT.test(f.name)
   );
-
   const paramsImg =
     images.find((f) => PARAMS_NAME.test(f.name)) ??
-    (images.length > 1 ? images[1] : undefined);
+    (images.length > 1
+      ? onlyOne(images.filter(isPhoneShaped)) ??
+        onlyOne(images.filter(isPng)) ??
+        images[1]
+      : undefined);
   const staticImg = images.find((f) => f !== paramsImg);
 
   return { video, staticImg, paramsImg };
@@ -89,8 +108,11 @@ export async function fetchGalleryItems(): Promise<GalleryItem[]> {
         // Fetch files inside this subfolder
         const filesRes = await drive.files.list({
           q: `'${folder.id}' in parents and trashed = false`,
-          fields: 'files(id, name, mimeType)',
+          fields: 'files(id, name, mimeType, imageMediaMetadata(width, height))',
           pageSize: 100,
+          // Without an explicit order, Drive's is unspecified, and the
+          // "second image" fallback would flip between syncs.
+          orderBy: 'name',
           supportsAllDrives: true,
           includeItemsFromAllDrives: true,
         });
@@ -99,6 +121,8 @@ export async function fetchGalleryItems(): Promise<GalleryItem[]> {
           id: f.id ?? '',
           name: f.name ?? '',
           mimeType: f.mimeType ?? undefined,
+          width: f.imageMediaMetadata?.width ?? undefined,
+          height: f.imageMediaMetadata?.height ?? undefined,
         }));
 
         const { video, staticImg, paramsImg } = classifyAssets(files);

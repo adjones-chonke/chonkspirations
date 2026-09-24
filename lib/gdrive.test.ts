@@ -27,6 +27,34 @@ describe('classifyAssets', () => {
     assert.equal(paramsImg?.name, 'second.jpg');
   });
 
+  test('the only PNG is the params screenshot, whatever the order', () => {
+    for (const names of [['IMG_4667.JPG', 'IMG_5447.PNG'], ['IMG_5447.PNG', 'IMG_4667.JPG']]) {
+      const { staticImg, paramsImg } = classifyAssets(named(...names));
+      assert.equal(paramsImg?.name, 'IMG_5447.PNG');
+      assert.equal(staticImg?.name, 'IMG_4667.JPG');
+    }
+  });
+
+  test('the phone-shaped image is the params screenshot, even among PNGs', () => {
+    const files = [
+      { name: 'a.png', width: 1170, height: 2532 },
+      { name: 'b.png', width: 3024, height: 4032 },
+    ];
+    for (const order of [files, [...files].reverse()]) {
+      const { staticImg, paramsImg } = classifyAssets(order);
+      assert.equal(paramsImg?.name, 'a.png');
+      assert.equal(staticImg?.name, 'b.png');
+    }
+  });
+
+  test('shape beats file type when they disagree', () => {
+    const { paramsImg } = classifyAssets([
+      { name: 'shot.jpg', width: 1170, height: 2532 },
+      { name: 'still.png', width: 1440, height: 1920 },
+    ]);
+    assert.equal(paramsImg?.name, 'shot.jpg');
+  });
+
   test('a lone image is the preview, not the params shot', () => {
     const { staticImg, paramsImg } = classifyAssets(named('only.png'));
     assert.equal(staticImg?.name, 'only.png');
